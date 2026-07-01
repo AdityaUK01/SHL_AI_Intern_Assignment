@@ -1,53 +1,58 @@
 class ConversationAnalyzer:
 
-    CLARIFY_KEYWORDS = [
-        "assessment",
-        "test",
-        "help",
-        "recommend",
-        "hire"
-    ]
-
-    REFINE_KEYWORDS = [
-        "actually",
-        "instead",
-        "also",
-        "add",
-        "remove",
-        "include",
-        "exclude",
-        "change"
-    ]
-
-    COMPARE_KEYWORDS = [
-        "compare",
-        "difference",
-        "vs",
-        "versus"
-    ]
-
     def detect_intent(self, messages):
 
-        latest = messages[-1]["content"].lower().strip()
-
-        # Compare
-        if any(word in latest for word in self.COMPARE_KEYWORDS):
-            return "compare"
-
-        # Refine
-        if any(word in latest for word in self.REFINE_KEYWORDS):
-            return "refine"
-
-        # Clarify
-        if len(latest.split()) <= 4:
+        if not messages:
             return "clarify"
 
-        if latest in [
+        user_messages = [
+            m["content"].lower()
+            for m in messages
+            if m["role"] == "user"
+        ]
+
+        if not user_messages:
+            return "clarify"
+
+        latest = user_messages[-1]
+
+        compare_words = [
+            "compare",
+            "comparison",
+            "difference",
+            "vs",
+            "versus"
+        ]
+
+        if any(word in latest for word in compare_words):
+            return "compare"
+
+        refine_words = [
+            "actually",
+            "instead",
+            "also",
+            "add",
+            "remove",
+            "change",
+            "only",
+            "include"
+        ]
+
+        if len(user_messages) > 1 and any(word in latest for word in refine_words):
+            return "refine"
+
+        clarify_words = [
             "assessment",
             "test",
-            "i need an assessment",
-            "recommend a test"
-        ]:
+            "help",
+            "recommend"
+        ]
+
+        if (
+            len(user_messages) == 1
+            and len(latest.split()) <= 5
+            and any(word in latest for word in clarify_words)
+        ):
             return "clarify"
 
         return "recommend"

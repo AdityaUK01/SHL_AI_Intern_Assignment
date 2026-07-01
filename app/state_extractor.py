@@ -4,6 +4,7 @@ import re
 class ConversationStateExtractor:
 
     def __init__(self):
+
         self.skills = [
             "java",
             "python",
@@ -51,35 +52,85 @@ class ConversationStateExtractor:
 
         lower = text.lower()
 
-        # personality
-        if "personality" in lower:
+        # -------------------------
+        # Personality
+        # -------------------------
+
+        personality_keywords = [
+            "personality",
+            "behavior",
+            "behaviour",
+            "opq"
+        ]
+
+        if any(word in lower for word in personality_keywords):
             state["personality"] = True
 
-        # compare
-        if "compare" in lower or "difference" in lower:
+        # -------------------------
+        # Comparison
+        # -------------------------
+
+        comparison_keywords = [
+            "compare",
+            "comparison",
+            "difference",
+            "vs",
+            "versus"
+        ]
+
+        if any(word in lower for word in comparison_keywords):
             state["comparison"] = True
 
-        # seniority
+        # -------------------------
+        # Seniority
+        # -------------------------
 
         for level in self.seniority:
             if level in lower:
                 state["seniority"] = level
                 break
 
-        # skills
+        # -------------------------
+        # Skills
+        # -------------------------
 
         for skill in self.skills:
             if skill in lower:
                 state["skills"].append(skill)
 
-        # role
+        # -------------------------
+        # Role
+        # -------------------------
 
-        match = re.search(
+        role_match = re.search(
             r"hiring\s+(?:a|an)?\s*(.+?)(?:with|who|actually|$)",
             lower
         )
 
-        if match:
-            state["role"] = match.group(1).strip()
+        if role_match:
+            state["role"] = role_match.group(1).strip()
+
+        # -------------------------
+        # Compare Items
+        # -------------------------
+
+        if state["comparison"]:
+
+            compare_match = re.search(
+                r"compare\s+(.+?)\s+(?:and|vs|versus)\s+(.+)",
+                text,
+                re.IGNORECASE
+            )
+
+            if compare_match:
+
+                first = compare_match.group(1).strip()
+
+                second = compare_match.group(2).strip()
+
+                state["compare_items"] = [
+                    first,
+                    second
+                ]
 
         return state
