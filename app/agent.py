@@ -185,6 +185,21 @@ class SHLAgent:
         )
 
         # ----------------------------------------------------
+        # Build Recommendation List
+        # (moved up so it's available as a fallback if Gemini fails,
+        # and so it's only built once instead of twice)
+        # ----------------------------------------------------
+
+        recommendations = self.build_recommendations(
+            assessments
+        )
+
+        self.log_state(
+            "Recommendations",
+            len(recommendations)
+        )
+
+        # ----------------------------------------------------
         # Compare Intent
         # ----------------------------------------------------
 
@@ -232,23 +247,39 @@ Rules:
 - Keep the answer concise.
 """
 
-            reply = ask_gemini(
-                SYSTEM_PROMPT,
-                prompt
-            )
+            try:
 
-        # ----------------------------------------------------
-        # Build Recommendation List
-        # ----------------------------------------------------
+                reply = ask_gemini(
+                    SYSTEM_PROMPT,
+                    prompt
+                )
 
-        recommendations = self.build_recommendations(
-            assessments
-        )
+                if not reply:
+                    raise Exception("Empty Gemini response")
 
-        self.log_state(
-            "Recommendations",
-            len(recommendations)
-        )
+            except Exception as e:
+
+                print(f"\nGemini Error: {e}")
+
+                if recommendations:
+
+                    names = "\n".join(
+                        f"• {r['name']}"
+                        for r in recommendations
+                    )
+
+                    reply = (
+                        "Gemini is temporarily unavailable (quota exceeded or API error).\n\n"
+                        "Based on your requirements, I found these recommended SHL assessments:\n\n"
+                        f"{names}\n\n"
+                        "Please refer to the recommendation list below for complete details."
+                    )
+
+                else:
+
+                    reply = (
+                        "Gemini is temporarily unavailable and no matching SHL assessments were found."
+                    )
 
         for recommendation in recommendations:
 
