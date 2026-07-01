@@ -1,7 +1,8 @@
-from sentence_transformers import SentenceTransformer
-import faiss
-import numpy as np
 import os
+import numpy as np
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 class SHLRetriever:
@@ -10,148 +11,118 @@ class SHLRetriever:
 
         self.assessments = assessments
 
-        print("Loading embedding model...")
-
-        self.model = SentenceTransformer(
-            "all-MiniLM-L6-v2"
-        )
-
         self.documents = [
             self.create_document(a)
             for a in assessments
         ]
 
-        self.index = None
-        self.embeddings = None
+        self.vectorizer = None
+        self.document_vectors = None
 
-        self.load_or_build()
-
-    # ----------------------------------------------------
-
-    def load_or_build(self):
-
-        index_path = "data/faiss.index"
-        embedding_path = "data/embeddings.npy"
-
-        if os.path.exists(index_path) and os.path.exists(embedding_path):
-
-            print("Loading pre-built FAISS index...")
-
-            self.index = faiss.read_index(index_path)
-
-            self.embeddings = np.load(
-                embedding_path
-            ).astype("float32")
-
-            print(
-                f"Loaded {self.index.ntotal} vectors."
-            )
-
-        else:
-
-            print(
-                "Pre-built index not found."
-            )
-
-            self.build_index()
+        self.build_index()
 
     # ----------------------------------------------------
+
     def create_document(self, assessment):
+
         name = assessment.get("name", "")
         description = assessment.get("description", "")
         duration = assessment.get("duration", "")
         job_levels = assessment.get("job_levels_raw", "")
         languages = assessment.get("languages_raw", "")
         url = assessment.get("link", "")
+
         categories = ", ".join(
             assessment.get("keys", [])
         )
+
         searchable = f"""
 Assessment Name:
 {name}
+
 Description:
 {description}
+
 Categories:
 {categories}
+
 Duration:
 {duration}
+
 Job Levels:
 {job_levels}
+
 Languages:
 {languages}
+
 URL:
 {url}
+
 Search Keywords:
+
 {name}
+
 {categories}
+
 {description}
+
 Assessment
+
 Hiring
+
 Recruitment
+
 Knowledge Test
+
 Personality Assessment
-Cognitive Ability
+
 Behavioral Assessment
+
+Cognitive Ability
+
 Programming
+
 Developer
+
 Software Engineer
+
 Java
+
 Python
+
 SQL
+
 Leadership
+
 Communication
+
 Problem Solving
+
 Critical Thinking
 """
+
         return searchable
 
     # ----------------------------------------------------
 
     def build_index(self):
 
-        os.makedirs("data", exist_ok=True)
+        print("Building TF-IDF index...")
 
-        print("Generating embeddings...")
-
-        self.embeddings = self.model.encode(
-
-            self.documents,
-
-            convert_to_numpy=True,
-
-            normalize_embeddings=True,
-
-            show_progress_bar=True,
-
-            batch_size=16
-
-        ).astype("float32")
-
-        dimension = self.embeddings.shape[1]
-
-        self.index = faiss.IndexFlatIP(
-            dimension
+        self.vectorizer = TfidfVectorizer(
+            stop_words="english",
+            ngram_range=(1, 2)
         )
 
-        self.index.add(
-            self.embeddings
-        )
-
-        faiss.write_index(
-            self.index,
-            "data/faiss.index"
-        )
-
-        np.save(
-            "data/embeddings.npy",
-            self.embeddings
+        self.document_vectors = self.vectorizer.fit_transform(
+            self.documents
         )
 
         print(
-            f"Saved {len(self.documents)} embeddings."
+            f"Indexed {len(self.documents)} assessments."
         )
 
-    # ----------------------------------------------------
+            # ----------------------------------------------------
 
     def format_context(
         self,
@@ -202,24 +173,27 @@ URL:
         top_k=5
     ):
 
-        query_embedding = self.model.encode(
-            [query],
-            convert_to_numpy=True,
-            normalize_embeddings=True
-        ).astype("float32")
-
-        scores, indices = self.index.search(
-            query_embedding,
-            top_k
+        query_vector = self.vectorizer.transform(
+            [query]
         )
+
+        scores = cosine_similarity(
+            query_vector,
+            self.document_vectors
+        ).flatten()
+
+        ranked = np.argsort(scores)[::-1]
 
         assessments = []
 
         seen = set()
 
-        for idx in indices[0]:
+        for idx in ranked:
 
-            if idx < 0:
+            if len(assessments) >= top_k:
+                break
+
+            if scores[idx] <= 0:
                 continue
 
             assessment = self.assessments[idx]
@@ -239,23 +213,11 @@ URL:
                 assessment
             )
 
-        context = self.format_context(
-            assessments
-        )
-
-        return assessments, context
-
-    # ----------------------------------------------------
-
-    def search_by_category(
-        self,
-        category,
-        top_k=5
-    ):
-
-        return self.search(
-            category,
-            top_k
+        return (
+            assessments,
+            self.format_context(
+                assessments
+            )
         )
 
     # ----------------------------------------------------
@@ -296,13 +258,27 @@ URL:
 
         merged = merged[:10]
 
-        context = self.format_context(
-            merged
+        return (
+            merged,
+            self.format_context(
+                merged
+            )
         )
 
-        return merged, context
-
     # ----------------------------------------------------
+
+    def search_by_category(
+        self,
+        category,
+        top_k=5
+    ):
+
+        return self.search(
+            category,
+            top_k
+        )
+
+        # ----------------------------------------------------
 
     def compare(
         self,
@@ -310,7 +286,7 @@ URL:
     ):
         """
         Compare assessments using exact match first,
-        then semantic search as fallback.
+        then TF-IDF similarity as fallback.
         """
 
         results = []
@@ -319,9 +295,9 @@ URL:
 
         for name in assessment_names:
 
-            # -----------------------------
+            # -----------------------
             # Exact match
-            # -----------------------------
+            # -----------------------
 
             exact = None
 
@@ -343,21 +319,17 @@ URL:
                     ""
                 )
 
-                if url and url in seen:
-                    continue
+                if url and url not in seen:
 
-                if url:
                     seen.add(url)
 
-                results.append(
-                    exact
-                )
+                    results.append(exact)
 
                 continue
 
-            # -----------------------------
-            # Semantic fallback
-            # -----------------------------
+            # -----------------------
+            # TF-IDF fallback
+            # -----------------------
 
             assessments, _ = self.search(
                 name,
@@ -371,17 +343,13 @@ URL:
                     ""
                 )
 
-                if url and url in seen:
-
-                    continue
-
-                if url:
+                if url and url not in seen:
 
                     seen.add(url)
 
-                results.append(
-                    assessment
-                )
+                    results.append(
+                        assessment
+                    )
 
         return (
             results,
