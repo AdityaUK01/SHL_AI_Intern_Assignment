@@ -304,49 +304,41 @@ URL:
 
     # ----------------------------------------------------
 
+
     def compare(
         self,
         assessment_names
     ):
         """
         Retrieve assessments for comparison.
-
-        Example:
-        [
-            "OPQ32r",
-            "GSA"
-        ]
+        Uses exact-name matching first, then falls back to semantic search.
         """
 
         results = []
-
         seen = set()
 
         for name in assessment_names:
 
-            assessments, _ = self.search(
-                name,
-                top_k=3
-            )
+            exact = None
+
+            for assessment in self.assessments:
+                if assessment.get("name", "").lower() == name.lower():
+                    exact = assessment
+                    break
+
+            if exact:
+                url = exact.get("link", "")
+                if url not in seen:
+                    seen.add(url)
+                    results.append(exact)
+                continue
+
+            assessments, _ = self.search(name, top_k=1)
 
             for assessment in assessments:
+                url = assessment.get("link", "")
+                if url not in seen:
+                    seen.add(url)
+                    results.append(assessment)
 
-                url = assessment.get(
-                    "link",
-                    ""
-                )
-
-                if url in seen:
-                    continue
-
-                seen.add(url)
-
-                results.append(
-                    assessment
-                )
-
-        context = self.format_context(
-            results
-        )
-
-        return results, context
+        return results, self.format_context(results)

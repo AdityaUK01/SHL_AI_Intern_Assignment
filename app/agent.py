@@ -137,14 +137,47 @@ class SHLAgent:
             search_query
         )
 
+        blocked = [
+            "ignore your instructions",
+            "ignore previous instructions",
+            "system prompt",
+            "jailbreak"
+        ]
+
+        if any(x in state["raw_query"].lower() for x in blocked):
+            return {
+                "reply": "I can only recommend assessments that exist in the SHL catalog.",
+                "recommendations": [],
+                "end_of_conversation": False
+            }
+
+
         # ----------------------------------------------------
         # Retrieve Assessments
         # ----------------------------------------------------
 
-        assessments, context = self.retriever.search(
-            search_query,
-            top_k=10
-        )
+        if state["comparison"] and state["compare_items"]:
+
+            assessments, context = self.retriever.compare(
+                state["compare_items"]
+            )
+
+        elif state["personality"]:
+
+            assessments, context = self.retriever.search_multiple(
+                [
+                    search_query,
+                    "personality assessment"
+                ],
+                top_k_each=5
+            )
+
+        else:
+
+            assessments, context = self.retriever.search(
+                search_query,
+                top_k=10
+            )
 
         self.log_state(
             "Retrieved Assessments",
@@ -195,7 +228,7 @@ Rules:
   • Category
 - If personality=True, include personality assessments if available.
 - If comparison=True, compare ONLY using the supplied catalog.
-- If there are no suitable assessments, say so clearly.
+- If there are no suitable assessments, explicitly state that no exact SHL assessment exists and recommend the closest relevant assessments.
 - Keep the answer concise.
 """
 
