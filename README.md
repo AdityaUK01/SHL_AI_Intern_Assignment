@@ -2,7 +2,9 @@
 
 A conversational AI API that recommends relevant SHL assessments based on hiring requirements.
 
-The application uses a Retrieval-Augmented Generation (RAG) pipeline to understand hiring needs, retrieve relevant assessments from the SHL product catalog, and generate grounded recommendations using Google Gemini.
+The project uses a lightweight Retrieval-Augmented Generation (RAG) pipeline to understand hiring needs, retrieve relevant assessments from the SHL product catalog, and generate grounded recommendations using Google Gemini.
+
+The application supports multi-turn conversations, asks clarification questions when needed, and recommends only assessments available in the official SHL catalog.
 
 ---
 
@@ -10,32 +12,34 @@ The application uses a Retrieval-Augmented Generation (RAG) pipeline to understa
 
 - Conversational hiring assistant
 - Multi-turn conversation support
-- Clarification questions
-- SHL assessment recommendation
-- Requirement refinement
+- Requirement refinement through follow-up questions
+- SHL assessment recommendations
 - Assessment comparison
+- Retrieval-Augmented Generation (RAG)
 - Stateless REST API
-- FastAPI + Swagger documentation
-- Render deployment
+- FastAPI with automatic Swagger documentation
+- Deployable on Render
 
 ---
 
 ## Tech Stack
 
-- Python 3.11+
-- FastAPI
-- Google Gemini 2.5 Flash
-- Scikit-learn
-- TF-IDF
-- Cosine Similarity
-- Render
-- GitHub
+| Category | Technology |
+|----------|------------|
+| Language | Python 3.11 |
+| Framework | FastAPI |
+| LLM | Google Gemini 2.5 Flash |
+| Retrieval | TF-IDF |
+| Similarity Search | Cosine Similarity |
+| Machine Learning | Scikit-learn |
+| Deployment | Render |
+| Version Control | Git & GitHub |
 
 ---
 
 ## Project Structure
 
-```
+```text
 SHL-AI-AGENT
 │
 ├── app
@@ -66,56 +70,45 @@ SHL-AI-AGENT
 # System Architecture
 
 ```
-User Request
-
-        │
-
-        ▼
-
-Conversation Analyzer
-
-        │
-
-        ▼
-
-Conversation State Extraction
-
-        │
-
-        ▼
-
-Query Builder
-
-        │
-
-        ▼
-
-TF-IDF Retrieval
-
-        │
-
-        ▼
-
-Cosine Similarity Ranking
-
-        │
-
-        ▼
-
-Relevant SHL Assessments
-
-        │
-
-        ▼
-
-Google Gemini 2.5 Flash
-
-        │
-
-        ▼
-
-Final Response
+                User Request
+                     │
+                     ▼
+        Conversation Analysis
+                     │
+                     ▼
+      Conversation State Extraction
+                     │
+                     ▼
+            Query Builder
+                     │
+                     ▼
+          TF-IDF Vector Search
+                     │
+                     ▼
+      Cosine Similarity Ranking
+                     │
+                     ▼
+     Relevant SHL Assessments
+                     │
+                     ▼
+       Google Gemini 2.5 Flash
+                     │
+                     ▼
+        Grounded AI Response
 ```
+
+---
+
+# How It Works
+
+1. User sends hiring requirements.
+2. Conversation history is analyzed.
+3. Missing information is identified.
+4. A search query is generated.
+5. TF-IDF retrieves relevant assessments.
+6. Cosine similarity ranks the best matches.
+7. Retrieved assessments are provided to Gemini.
+8. Gemini generates a grounded recommendation using only retrieved assessments.
 
 ---
 
@@ -123,13 +116,13 @@ Final Response
 
 ## Health Check
 
-GET
+**GET**
 
 ```
 /health
 ```
 
-Example
+Example Response
 
 ```json
 {
@@ -139,9 +132,9 @@ Example
 
 ---
 
-## Chat Endpoint
+## Chat
 
-POST
+**POST**
 
 ```
 /chat
@@ -158,11 +151,11 @@ Example Request
     },
     {
       "role": "assistant",
-      "content": "Sure. What is seniority level?"
+      "content": "Sure. What is the seniority level?"
     },
     {
       "role": "user",
-      "content": "Mid-level, around 4 years"
+      "content": "Mid-level with around 4 years of experience."
     }
   ]
 }
@@ -188,121 +181,123 @@ Example Response
 
 # Retrieval Pipeline
 
-Instead of using a vector database, the final implementation uses a lightweight retrieval pipeline based on TF-IDF.
+The application uses a lightweight Retrieval-Augmented Generation (RAG) pipeline without relying on a vector database.
 
-Steps:
+### Retrieval Steps
 
-1. Load SHL catalog
+1. Load the SHL assessment catalog
 2. Build searchable documents
 3. Generate TF-IDF vectors
-4. Calculate cosine similarity
+4. Compute cosine similarity
 5. Retrieve top matching assessments
 6. Pass retrieved context to Gemini
 7. Generate grounded recommendations
 
-This approach significantly reduces memory usage while maintaining relevant recommendations.
+This approach provides fast retrieval while keeping memory usage low enough for deployment on Render's free tier.
 
 ---
 
 # Prompt Design
 
-The LLM is instructed to:
+The Gemini prompt is designed to ensure reliable recommendations by instructing the model to:
 
-- Recommend only assessments present in the SHL catalog
+- Recommend only assessments available in the SHL catalog
 - Never invent assessment names
-- Never invent URLs
-- Explain why each recommendation fits
-- Ask clarification questions when needed
+- Never generate fake URLs
+- Explain why each assessment matches the hiring requirements
+- Ask clarification questions when information is incomplete
 - Compare only retrieved assessments
-- Generate grounded responses
+- Generate grounded responses based on retrieved context
 
 ---
 
 # Challenges Faced
 
-## Initial Retrieval
+## 1. Retrieval System
 
-The project initially used:
+The initial implementation used:
 
-- SentenceTransformer
+- SentenceTransformers
 - FAISS
 
-Although semantic retrieval produced good results, deployment on Render Free repeatedly failed because of memory limitations.
+Although semantic retrieval performed well, deployment on Render Free repeatedly failed due to the 512 MB memory limit.
 
-Common deployment errors included:
+Common issues included:
 
-- Out of memory (512MB limit)
+- Out-of-memory errors
+- Startup failures
 - No open ports detected
-- Application startup failures
 
-The retrieval system was redesigned using TF-IDF and cosine similarity to make deployment stable.
+The retrieval pipeline was redesigned using TF-IDF and cosine similarity, resulting in a lightweight and stable deployment.
 
 ---
 
-## Dependency Issues
+## 2. Dependency Management
 
-During deployment several package installation issues occurred, including pandas metadata generation failures.
+Several deployment failures occurred because of package compatibility issues, including pandas metadata generation errors.
 
 These were resolved by:
 
-- updating dependency versions
-- simplifying requirements
-- rebuilding the deployment environment
+- Updating package versions
+- Simplifying dependencies
+- Rebuilding the deployment environment
 
 ---
 
-## SHL Catalog Cleaning
+## 3. SHL Catalog Cleaning
 
-The provided SHL catalog contained inconsistencies such as:
+The provided SHL catalog required preprocessing before retrieval.
 
-- duplicate entries
-- missing values
-- inconsistent formatting
-- inconsistent URLs
+The cleaning process included:
 
-The catalog was cleaned before building the retrieval pipeline.
+- Removing duplicate entries
+- Handling missing values
+- Fixing inconsistent formatting
+- Correcting invalid URLs
 
 ---
 
-## Gemini API Limits
+## 4. Gemini Rate Limits
 
-Google Gemini Free Tier occasionally returned:
+The Google Gemini Free Tier occasionally returned:
 
 ```
 429 RESOURCE_EXHAUSTED
 ```
 
-Graceful error handling was added so the application can continue returning retrieved recommendations instead of crashing.
+Graceful fallback handling was implemented so that retrieved assessment recommendations are still returned even when Gemini is temporarily unavailable.
 
 ---
 
 # Running Locally
 
-Clone the repository
+## Clone the Repository
 
 ```bash
 git clone <repository-url>
 ```
 
-Install dependencies
+## Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Create a `.env` file
+## Configure Environment Variables
 
-```
+Create a `.env` file:
+
+```text
 GEMINI_API_KEY=YOUR_API_KEY
 ```
 
-Run the application
+## Run the Server
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-Open
+Open:
 
 ```
 http://127.0.0.1:8000/docs
@@ -312,21 +307,19 @@ http://127.0.0.1:8000/docs
 
 # Deployment
 
-The application is deployed on Render.
-
-Base URL
+### Base URL
 
 ```
 https://shl-ai-agent-pnkc.onrender.com
 ```
 
-Swagger Documentation
+### Swagger UI
 
 ```
 https://shl-ai-agent-pnkc.onrender.com/docs
 ```
 
-Health Endpoint
+### Health Endpoint
 
 ```
 https://shl-ai-agent-pnkc.onrender.com/health
@@ -336,13 +329,14 @@ https://shl-ai-agent-pnkc.onrender.com/health
 
 # Future Improvements
 
-- Hybrid Retrieval (TF-IDF + Dense Embeddings)
-- Better ranking model
+- Hybrid retrieval (TF-IDF + dense embeddings)
+- Better ranking models
 - Conversation memory
-- Vector database
-- Caching
-- Improved evaluation metrics
+- Vector database integration
+- Response caching
+- Retrieval evaluation metrics
 - Streaming responses
+- Authentication and rate limiting
 
 ---
 
