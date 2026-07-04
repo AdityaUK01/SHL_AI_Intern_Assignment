@@ -274,7 +274,7 @@ Graceful fallback handling was implemented so that retrieved assessment recommen
 ## Clone the Repository
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/AdityaUK01/SHL_AI_Intern_Assignment
 ```
 
 ## Install Dependencies
